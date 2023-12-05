@@ -62,7 +62,7 @@ tokenizer = AutoTokenizer.from_pretrained(
         trust_remote_code=True,
         use_fast=False
     )
-#?
+#added by chatgpt???
 tokenizer.bos_token_id = tokenizer.pad_token_id
 tokenizer.eos_token_id = tokenizer.pad_token_id
 
@@ -82,7 +82,7 @@ tokenizer.eos_token_id = tokenizer.pad_token_id
 
 
 
-suffix_manager = SuffixManager(
+suffix_manager = SuffixManager(tokenizer = tokenizer,
               instruction=user_prompt,
               target=target,
               adv_string=adv_string_init)
