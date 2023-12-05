@@ -523,7 +523,7 @@ if __name__ == "__main__":
     arg = argparse.ArgumentParser()
     arg.add_argument("--partition", type=str, default="placement_generalization")
     arg.add_argument("--task", type=str, default="visual_manipulation")
-    arg.add_argument("--ckpt", type=str, default="D:\\Project\\PycharmProject\\VIMA\\200M.ckpt")
+    arg.add_argument("--ckpt", type=str, default="D:\\Project\\PycharmProject\\200M.ckpt")
     arg.add_argument("--device", default="cpu")
     arg = arg.parse_args()
     main(arg)
