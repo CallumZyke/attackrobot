@@ -66,6 +66,16 @@ tokenizer = AutoTokenizer.from_pretrained(
 tokenizer.bos_token_id = tokenizer.pad_token_id
 tokenizer.eos_token_id = tokenizer.pad_token_id
 
+'''
+model 
+'''
+#已经得到模型的output
+model_output
+
+#model_device
+model_device='cuda:0'
+
+#model.generation_config和生成文本有关，故删掉
 
  model, = load_model_and_tokenizer(model_path,
 #                        low_cpu_mem_usage=True,
@@ -91,20 +101,19 @@ suffix_manager = SuffixManager(tokenizer = tokenizer,
 
 
 
-
 def generate(model, tokenizer, input_ids, assistant_role_slice, gen_config=None):
     if gen_config is None:
-        gen_config = model.generation_config
+        #gen_config = model.generation_config
         gen_config.max_new_tokens = 32
 
     if gen_config.max_new_tokens > 50:
         print('WARNING: max_new_tokens > 32 may cause testing to slow down.')
 
-    input_ids = input_ids[:assistant_role_slice.stop].to(model.device).unsqueeze(0)
-    attn_masks = torch.ones_like(input_ids).to(model.device)
+    input_ids = input_ids[:assistant_role_slice.stop].to(model_device).unsqueeze(0)
+    attn_masks = torch.ones_like(input_ids).to(model_device)
     output_ids = model.generate(input_ids,
                                 attention_mask=attn_masks,
-                                generation_config=gen_config,
+                                #generation_config=gen_config,
                                 pad_token_id=tokenizer.pad_token_id)[0]
 
     return output_ids[assistant_role_slice.stop:]
@@ -297,7 +306,7 @@ for i in range(num_steps):
 input_ids = suffix_manager.get_input_ids(adv_string=adv_suffix).to(device)
 
 #
-gen_config = model.generation_config
+#gen_config = model.generation_config
 gen_config.max_new_tokens = 256
 
 completion = tokenizer.decode((generate(model, tokenizer, input_ids, suffix_manager._assistant_role_slice, gen_config=gen_config))).strip()
