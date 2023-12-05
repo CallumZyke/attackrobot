@@ -7,12 +7,23 @@ from AttackFromDemo.llm_attacks.minimal_gcg.opt_utils import token_gradients, sa
 from AttackFromDemo.llm_attacks.minimal_gcg.opt_utils import load_model_and_tokenizer, get_filtered_cands
 from AttackFromDemo.llm_attacks.minimal_gcg.string_utils import SuffixManager, load_conversation_template
 from AttackFromDemo.llm_attacks import get_nonascii_toks
+from vima import create_policy_from_ckpt
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from livelossplot import PlotLosses # pip install livelossplot
+import argparse
 
 
+def get_args_parser():
+    parser = argparse.ArgumentParser('Attack Vima robot', add_help=False)
+    parser.add_argument('--device', default='cuda:0',
+                        help='device to use for training / testing')
+    parser.add_argument('--vima_ckpt_path', default="D:\\Project\\PycharmProject\\200M.ckpt", type=str)
+    return parser
 
 
+parser = argparse.ArgumentParser('llm training and evaluation script', parents=[get_args_parser()])
+args = parser.parse_args()
 
 # Set the random seed for NumPy
 np.random.seed(20)
@@ -38,7 +49,7 @@ target = [0,0,0,0,0,0,0,0]
  [end effector position3x, end effector orientation3x, gripper action1x, episode termination1x].
 '''
 #template_name = 'llama-2'
-device = 'cuda:0'
+device = args.device
 batch_size = 512
 topk = 256
 
@@ -55,19 +66,30 @@ allow_non_ascii = False # you can set this to True to use unicode tokens
 #                    "it's not appropriate",
 #                    "As a responsible AI"]
 
-
+# 得到模型和分词器
+policy = create_policy_from_ckpt(args.vima_ckpt_path, args.device)
 
 tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_path='t5-base',
         trust_remote_code=True,
         use_fast=False
     )
-#?
+#added by chatgpt???
 tokenizer.bos_token_id = tokenizer.pad_token_id
 tokenizer.eos_token_id = tokenizer.pad_token_id
 
+'''
+model 
+'''
+#已经得到模型的output
+model_output
 
- model, = load_model_and_tokenizer(model_path,
+#model_device
+model_device = parser.device
+
+#model.generation_config和生成文本有关，故删掉
+
+model =
 #                        low_cpu_mem_usage=True,
 #                        use_cache=False,
 #                        device=device)
@@ -82,7 +104,7 @@ tokenizer.eos_token_id = tokenizer.pad_token_id
 
 
 
-suffix_manager = SuffixManager(
+suffix_manager = SuffixManager(tokenizer = tokenizer,
               instruction=user_prompt,
               target=target,
               adv_string=adv_string_init)
@@ -91,20 +113,19 @@ suffix_manager = SuffixManager(
 
 
 
-
 def generate(model, tokenizer, input_ids, assistant_role_slice, gen_config=None):
     if gen_config is None:
-        gen_config = model.generation_config
+        #gen_config = model.generation_config
         gen_config.max_new_tokens = 32
 
     if gen_config.max_new_tokens > 50:
         print('WARNING: max_new_tokens > 32 may cause testing to slow down.')
 
-    input_ids = input_ids[:assistant_role_slice.stop].to(model.device).unsqueeze(0)
-    attn_masks = torch.ones_like(input_ids).to(model.device)
+    input_ids = input_ids[:assistant_role_slice.stop].to(model_device).unsqueeze(0)
+    attn_masks = torch.ones_like(input_ids).to(model_device)
     output_ids = model.generate(input_ids,
                                 attention_mask=attn_masks,
-                                generation_config=gen_config,
+                                #generation_config=gen_config,
                                 pad_token_id=tokenizer.pad_token_id)[0]
 
     return output_ids[assistant_role_slice.stop:]
@@ -297,7 +318,7 @@ for i in range(num_steps):
 input_ids = suffix_manager.get_input_ids(adv_string=adv_suffix).to(device)
 
 #
-gen_config = model.generation_config
+#gen_config = model.generation_config
 gen_config.max_new_tokens = 256
 
 completion = tokenizer.decode((generate(model, tokenizer, input_ids, suffix_manager._assistant_role_slice, gen_config=gen_config))).strip()
