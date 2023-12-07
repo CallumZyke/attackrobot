@@ -20,8 +20,8 @@ import fastchat
 
 # 后缀处理
 class SuffixManager:
-    def __init__(self, *, tokenizer, conv_template, instruction, target, adv_string):
-    #def __init__(self, *, tokenizer, instruction, target, adv_string):
+    #def __init__(self, *, tokenizer, conv_template, instruction, target, adv_string):
+    def __init__(self, *, tokenizer, instruction, target, adv_string):
 
         self.tokenizer = tokenizer
         #self.conv_template = conv_template

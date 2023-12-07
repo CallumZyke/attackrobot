@@ -15,7 +15,7 @@ import torch.nn.functional as F
 from fastchat.model import get_conversation_template
 from transformers import (AutoModelForCausalLM, AutoTokenizer, GPT2LMHeadModel,
                           GPTJForCausalLM, GPTNeoXForCausalLM,
-                          LlamaForCausalLM)
+                          LlamaForCausalLM,)
 
 
 class NpEncoder(json.JSONEncoder):
@@ -57,6 +57,17 @@ def get_embeddings(model, input_ids):
         return model.base_model.embed_in(input_ids).half()
     else:
         raise ValueError(f"Unknown model type: {type(model)}")
+
+def get_embedding_matrix_t5(model_name):
+    if isinstance(model, GPTJForCausalLM) or isinstance(model, GPT2LMHeadModel):
+        return model.transformer.wte.weight
+    elif isinstance(model, LlamaForCausalLM):
+        return model.model.embed_tokens.weight
+    elif isinstance(model, GPTNeoXForCausalLM):
+        return model.base_model.embed_in.weight
+    else:
+        raise ValueError(f"Unknown model type: {type(model)}")
+
 
 # *待确定
 # 返回不是分词器中不是ascii形式句子??词(即不是自然语言编码后形成的句子)的编号

@@ -8,6 +8,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from AttackFromDemo.llm_attacks import get_embedding_matrix, get_embeddings
 
 
+
 def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
 
     """
@@ -86,6 +87,88 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
     grad = grad / grad.norm(dim=-1, keepdim=True)
     
     return grad
+
+
+
+#后期有可能会变化
+model_device='cuda:0'
+
+
+def token_gradients_VIMA( input_ids, input_slice, target_slice, loss_slice):
+    """
+    Computes gradients of the loss with respect to the coordinates.
+
+    Parameters
+    ----------
+
+    input_ids : torch.Tensor
+        The input sequence in the form of token ids.
+    input_slice : slice
+        The slice of the input sequence for which gradients need to be computed.
+    target_slice : slice
+        The slice of the input sequence to be used as targets.
+    loss_slice : slice
+        The slice of the logits to be used for computing the loss.
+
+    Returns
+    -------
+    torch.Tensor
+        The gradients of each token in the input_slice with respect to the loss.
+    """
+
+    embed_weights = get_embedding_matrix(model=)
+    one_hot = torch.zeros(
+        input_ids[input_slice].shape[0],
+        embed_weights.shape[0],
+        device=model.device,
+        dtype=embed_weights.dtype
+    )
+    one_hot.scatter_(
+        1,
+        input_ids[input_slice].unsqueeze(1),
+        torch.ones(one_hot.shape[0], 1, device=model.device, dtype=embed_weights.dtype)
+    )
+    one_hot.requires_grad_()
+    input_embeds = (one_hot @ embed_weights).unsqueeze(0)
+    '''input_embeds = (one_hot @ embed_weights):
+#这里是先假设one_hot形状为(batch_size, vocab_size)
+
+    这是一个矩阵相乘的操作，其中
+    one_hot
+    是一个形状为(batch_size, vocab_size)
+    的
+    one - hot
+    编码的张量，而
+    embed_weights
+    是一个形状为(vocab_size, embedding_dim)
+    的嵌入权重矩阵。
+    结果是一个形状为(batch_size, embedding_dim)
+    的张量，其中包含了输入切片中每个
+    token
+    的嵌入表示。'''
+
+    # now stitch it together with the rest of the embeddings
+    embeds = get_embeddings(model, input_ids.unsqueeze(0)).detach()
+    full_embeds = torch.cat(
+        [
+            embeds[:, :input_slice.start, :],  # 表示在整个输入序列中，选择从开头到 input_slice.start 之前的嵌入表示。
+            input_embeds,
+            embeds[:, input_slice.stop:, :]  # 目的是获取整个输入序列中，除了输入切片之外的部分的嵌入表示。
+        ],
+        dim=1)
+
+    # .logits:从模型的输出中获取对数概率
+    logits = model(inputs_embeds=full_embeds).logits
+    targets = input_ids[target_slice]
+    loss = nn.CrossEntropyLoss()(logits[0, loss_slice, :], targets)
+
+    loss.backward()
+
+    grad = one_hot.grad.clone()
+    grad = grad / grad.norm(dim=-1, keepdim=True)
+
+    return grad
+
 
 def sample_control(control_toks, grad, batch_size, topk=256, temp=1, not_allowed_tokens=None):
 
