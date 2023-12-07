@@ -7,12 +7,23 @@ from AttackFromDemo.llm_attacks.minimal_gcg.opt_utils import token_gradients, sa
 from AttackFromDemo.llm_attacks.minimal_gcg.opt_utils import load_model_and_tokenizer, get_filtered_cands
 from AttackFromDemo.llm_attacks.minimal_gcg.string_utils import SuffixManager, load_conversation_template
 from AttackFromDemo.llm_attacks import get_nonascii_toks
+from vima import create_policy_from_ckpt
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from livelossplot import PlotLosses # pip install livelossplot
+import argparse
 
 
+def get_args_parser():
+    parser = argparse.ArgumentParser('Attack Vima robot', add_help=False)
+    parser.add_argument('--device', default='cuda:0',
+                        help='device to use for training / testing')
+    parser.add_argument('--vima_ckpt_path', default="D:\\Project\\PycharmProject\\200M.ckpt", type=str)
+    return parser
 
 
+parser = argparse.ArgumentParser('llm training and evaluation script', parents=[get_args_parser()])
+args = parser.parse_args()
 
 # Set the random seed for NumPy
 np.random.seed(20)
@@ -38,7 +49,7 @@ target = [0,0,0,0,0,0,0,0]
  [end effector position3x, end effector orientation3x, gripper action1x, episode termination1x].
 '''
 #template_name = 'llama-2'
-device = 'cuda:0'
+device = args.device
 batch_size = 512
 topk = 256
 
@@ -55,7 +66,8 @@ allow_non_ascii = False # you can set this to True to use unicode tokens
 #                    "it's not appropriate",
 #                    "As a responsible AI"]
 
-
+# 得到模型和分词器
+policy = create_policy_from_ckpt(args.vima_ckpt_path, args.device)
 
 tokenizer = AutoTokenizer.from_pretrained(
         tokenizer_path='t5-base',
@@ -73,11 +85,11 @@ model
 model_output
 
 #model_device
-model_device='cuda:0'
+model_device = parser.device
 
 #model.generation_config和生成文本有关，故删掉
 
- model, = load_model_and_tokenizer(model_path,
+model =
 #                        low_cpu_mem_usage=True,
 #                        use_cache=False,
 #                        device=device)
