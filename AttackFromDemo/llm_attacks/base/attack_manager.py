@@ -17,6 +17,7 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer, GPT2LMHeadModel,
                           GPTJForCausalLM, GPTNeoXForCausalLM,
                           LlamaForCausalLM,)
 
+from transformers import T5ForConditionalGeneration
 
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -59,12 +60,34 @@ def get_embeddings(model, input_ids):
         raise ValueError(f"Unknown model type: {type(model)}")
 
 def get_embedding_matrix_t5(model_name):
-    if isinstance(model, GPTJForCausalLM) or isinstance(model, GPT2LMHeadModel):
-        return model.transformer.wte.weight
-    elif isinstance(model, LlamaForCausalLM):
-        return model.model.embed_tokens.weight
-    elif isinstance(model, GPTNeoXForCausalLM):
-        return model.base_model.embed_in.weight
+    # if isinstance(model, GPTJForCausalLM) or isinstance(model, GPT2LMHeadModel):
+    #     return model.transformer.wte.weight
+    # elif isinstance(model, LlamaForCausalLM):
+    #     return model.model.embed_tokens.weight
+    # elif isinstance(model, GPTNeoXForCausalLM):
+    #     return model.base_model.embed_in.weight
+    #if isinstance(model, T5ForConditionalGeneration):
+    if(model_name=="t5-base"):  #未测试！！
+        model= T5ForConditionalGeneration.from_pretrained(model_name)
+        return model.shared.weight
+    else:
+        raise ValueError(f"Unknown model type: {type(model)}")
+
+#未测试
+def get_embeddings_t5(model, input_ids):
+    # if isinstance(model, GPTJForCausalLM) or isinstance(model, GPT2LMHeadModel):
+    #     return model.transformer.wte(input_ids).half()
+    # elif isinstance(model, LlamaForCausalLM):
+    #     return model.model.embed_tokens(input_ids)
+    # elif isinstance(model, GPTNeoXForCausalLM):
+    #     return model.base_model.embed_in(input_ids).half()
+    if isinstance(model, T5ForConditionalGeneration):
+        # 将 input_ids 输入到 T5 模型中，得到输出
+        outputs = model(input_ids)
+
+        # 获取模型的嵌入表示（last_hidden_state）
+        embeddings = outputs.last_hidden_state
+        return embeddings
     else:
         raise ValueError(f"Unknown model type: {type(model)}")
 

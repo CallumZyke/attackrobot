@@ -98,7 +98,7 @@ def main(cfg):
         ),
         bonus_steps=2,
     )
-
+a
     while True:
         env.global_seed = seed
 

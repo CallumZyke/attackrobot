@@ -154,7 +154,7 @@ class SuffixManager:
         prompt = self.get_prompt(adv_string=adv_string)
         # 将句子prompt转化为标记序列toks
         toks = self.tokenizer(prompt).input_ids
-        input_ids = torch.tensor(toks[:self._target_slice.stop])
-
+       # input_ids = torch.tensor(toks[:self._target_slice.stop])
+        input_ids = torch.tensor(toks)
         return input_ids
 

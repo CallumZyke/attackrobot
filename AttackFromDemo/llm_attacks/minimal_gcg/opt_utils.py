@@ -33,8 +33,8 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
         The gradients of each token in the input_slice with respect to the loss.
     """
 
-    #embed_weights = get_embedding_matrix(model)
-    embed_weights =
+    embed_weights = get_embedding_matrix(model)
+    #embed_weights =
     one_hot = torch.zeros(
         input_ids[input_slice].shape[0],
         embed_weights.shape[0],
@@ -91,10 +91,13 @@ def token_gradients(model, input_ids, input_slice, target_slice, loss_slice):
 
 
 #后期有可能会变化
-model_device='cuda:0'
+policy_device='cuda:0'
 
+#未测试
+#policy_device直接作为输入
+def token_gradients_VIMA(policy_device, input_ids, actions,prefix_slice)
+ #                        input_slice, target_slice, loss_slice):
 
-def token_gradients_VIMA( input_ids, input_slice, target_slice, loss_slice):
     """
     Computes gradients of the loss with respect to the coordinates.
 
@@ -110,25 +113,45 @@ def token_gradients_VIMA( input_ids, input_slice, target_slice, loss_slice):
     loss_slice : slice
         The slice of the logits to be used for computing the loss.
 
+
+    Args:
+        actions:
+            (从vima中获得的字典,注意不是env.action_space)
+            {
+                "pose0_position": [ , ], "pose0_rotation": [ , , , ],
+                "pose1_position": [ , ], "pose1_rotation": [ , , , ]
+            }
+
+
+
     Returns
     -------
     torch.Tensor
         The gradients of each token in the input_slice with respect to the loss.
     """
 
-    embed_weights = get_embedding_matrix(model=)
+    embed_weights = get_embedding_matrix_t5(model_name="t5-base")
+    # chatGPT:创建一个全零的tensor，形状为 (batch_size, vocab_size)，其中 batch_size 是输入的样本数量，vocab_size 是嵌入矩阵的大小
     one_hot = torch.zeros(
-        input_ids[input_slice].shape[0],
-        embed_weights.shape[0],
-        device=model.device,
+        #input_ids[input_slice].shape[0],  # batch_size
+      #  input_ids.shape[0] #
+        input_ids[prefix_slice].shape[0],  # batch_size
+        embed_weights.shape[0],  # vocab_size
+        #device=model.device,
+        device=policy_device,
         dtype=embed_weights.dtype
     )
+    #未测试
     one_hot.scatter_(
         1,
-        input_ids[input_slice].unsqueeze(1),
-        torch.ones(one_hot.shape[0], 1, device=model.device, dtype=embed_weights.dtype)
+        #input_ids[input_slice].unsqueeze(1),
+       # input_ids.unsqueeze(1),
+        input_ids[prefix_slice].unsqueeze(1),
+        #torch.ones(one_hot.shape[0], 1, device=model.device, dtype=embed_weights.dtype)
+        torch.ones(one_hot.shape[0], 1, device=policy_device, dtype=embed_weights.dtype)
     )
     one_hot.requires_grad_()
+
     input_embeds = (one_hot @ embed_weights).unsqueeze(0)
     '''input_embeds = (one_hot @ embed_weights):
 #这里是先假设one_hot形状为(batch_size, vocab_size)
@@ -148,19 +171,31 @@ def token_gradients_VIMA( input_ids, input_slice, target_slice, loss_slice):
     的嵌入表示。'''
 
     # now stitch it together with the rest of the embeddings
-    embeds = get_embeddings(model, input_ids.unsqueeze(0)).detach()
-    full_embeds = torch.cat(
-        [
-            embeds[:, :input_slice.start, :],  # 表示在整个输入序列中，选择从开头到 input_slice.start 之前的嵌入表示。
-            input_embeds,
-            embeds[:, input_slice.stop:, :]  # 目的是获取整个输入序列中，除了输入切片之外的部分的嵌入表示。
-        ],
-        dim=1)
+    # embeds = get_embeddings_t5(model, input_ids.unsqueeze(0)).detach()
+    #
+    # full_embeds = torch.cat(
+    #     [
+    #         embeds[:, :input_slice.start, :],  # 表示在整个输入序列中，选择从开头到 input_slice.start 之前的嵌入表示。
+    #         input_embeds,
+    #         embeds[:, input_slice.stop:, :]  # 目的是获取整个输入序列中，除了输入切片之外的部分的嵌入表示。
+    #     ],
+    #     dim=1)
+    #
+    # # .logits:从模型的输出中获取对数概率
+    # logits = model(inputs_embeds=full_embeds).logits
+    # targets = input_ids[target_slice]
+    # loss = nn.CrossEntropyLoss()(logits[0, loss_slice, :], targets)
 
-    # .logits:从模型的输出中获取对数概率
-    logits = model(inputs_embeds=full_embeds).logits
-    targets = input_ids[target_slice]
-    loss = nn.CrossEntropyLoss()(logits[0, loss_slice, :], targets)
+
+         # actions:从vima中获得的字典,注意不是env.action_space
+    output = []
+    output.extend(actions["pose0_position"])
+    output.extend(actions["pose0_rotation"])
+    output.extend(actions["pose1_position"])
+    output.extend(actions["pose1_rotation"])
+    output = torch.Tensor(output)
+    targets = torch.zeros([12], requires_grad=True)
+    loss = nn.MSELoss()(output, targets)
 
     loss.backward()
 
@@ -169,6 +204,39 @@ def token_gradients_VIMA( input_ids, input_slice, target_slice, loss_slice):
 
     return grad
 
+
+
+
+# def get_grad(actions):
+#     """
+#     Args:
+#         actions:
+#             (从vima中获得的字典,注意不是env.action_space)
+#             {
+#                 "pose0_position": [ , ], "pose0_rotation": [ , , , ],
+#                 "pose1_position": [ , ], "pose1_rotation": [ , , , ]
+#             }
+#     """
+#     # actions:从vima中获得的字典,注意不是env.action_space
+#     output = []
+#     output.extend(actions["pose0_position"])
+#     output.extend(actions["pose0_rotation"])
+#     output.extend(actions["pose1_position"])
+#     output.extend(actions["pose1_rotation"])
+#     output = torch.Tensor(output)
+#     targets = torch.zeros([12], requires_grad=True)
+#     loss = nn.MSELoss()(output, targets)
+#     loss.backward()
+#     print(loss.item())
+
+
+# actions = {
+#     "pose0_position": [0.4099999964237213, -0.15000000596046448],
+#     "pose0_rotation": [0.0, 0.0, 0.0, 0.9600000381469727],
+#     "pose1_position": [0.3700000047683716, 0.36000001430511475],
+#     "pose1_rotation": [0.0, 0.0, 0.9600000381469727, -0.24000000953674316]
+# }
+# get_grad(actions)
 
 def sample_control(control_toks, grad, batch_size, topk=256, temp=1, not_allowed_tokens=None):
 
@@ -333,3 +401,18 @@ def load_model_and_tokenizer(model_path, tokenizer_path=None, device='cuda:0', *
         tokenizer.pad_token = tokenizer.eos_token
 
     return model, tokenizer
+
+
+def load_policy_and_tokenizer(policy_path, tokenizer_path=None, device='cuda:0', **kwargs):
+    policy = create_policy_from_ckpt(policy_path, device)
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer_path,
+        trust_remote_code=True,
+        use_fast=False
+    )
+
+    if not tokenizer.pad_token:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    return policy, tokenizer
