@@ -145,10 +145,10 @@ def main(args):
         #                                   suffix_manager._loss_slice)
         coordinate_grad = token_gradients_VIMA(
                                            policy_device="cuda:0",
-                                           input_ids, actions, prefix_slice
-                                           suffix_manager._control_slice,
-                                           suffix_manager._target_slice,
-                                           suffix_manager._loss_slice)
+                                           input_ids, actions, prefix_slice)
+ #                                          suffix_manager._control_slice,
+ #                                         suffix_manager._target_slice,
+ #                                          suffix_manager._loss_slice)
 
         # 步骤3：基于坐标梯度随机采样一批新的标记。
         # 注意我们只需要最小化损失的那个。
@@ -174,17 +174,18 @@ def main(args):
                                                 filter_cand=True,
                                                 curr_control=adv_suffix)
 
-            # 步骤3.4：计算这些候选的损失并取 argmin。
-            logits, ids = get_logits(model=model,
-                                     tokenizer=tokenizer,
-                                     input_ids=input_ids,
-                                     control_slice=suffix_manager._control_slice,
-                                     test_controls=new_adv_suffix,
-                                     return_ids=True,
-                                     batch_size=512)  # 如果内存溢出，请减小这个数字。
+            # # 步骤3.4：计算这些候选的损失并取 argmin。
+            # logits, ids = get_logits(model=model,
+            #                          tokenizer=tokenizer,
+            #                          input_ids=input_ids,
+            #                          control_slice=suffix_manager._control_slice,
+            #                          test_controls=new_adv_suffix,
+            #                          return_ids=True,
+            #                          batch_size=512)  # 如果内存溢出，请减小这个数字。
+            #
+            # losses = target_loss(logits, ids, suffix_manager._target_slice)
 
-            losses = target_loss(logits, ids, suffix_manager._target_slice)
-
+            losses = getlosses(test_controls=new_adv_suffix,batch_size=512)
             best_new_adv_suffix_id = losses.argmin()
             best_new_adv_suffix = new_adv_suffix[best_new_adv_suffix_id]
 

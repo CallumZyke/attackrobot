@@ -364,6 +364,72 @@ def target_loss(logits, ids, target_slice):
     return loss.mean(dim=-1)
 
 
+ #control_slice=suffix_manager._control_slice,
+ #test_controls=new_adv_suffix,
+def getlosses(tokenizer,input_ids,prefix_slice,test_controls, batch_size,policy_device):
+#def get_logits(*, model, tokenizer, input_ids, control_slice, test_controls=None, return_ids=False, batch_size=512):
+#def get_logits(*, model, tokenizer, input_ids, control_slice, test_controls=None, return_ids=False, batch_size=512):
+    # ... 省略了函数的参数声明
+
+    if isinstance(test_controls[0], str):
+        # 如果测试控制集合是字符串列表
+        #max_len = control_slice.stop - control_slice.start
+        max_len = prefix_slice.stop - prefix_slice.start
+        # 对每个测试控制进行标记化，限制最大长度并转换为模型设备
+        test_ids = [
+            torch.tensor(tokenizer(control, add_special_tokens=False).input_ids[:max_len], device=policy_device)
+            for control in test_controls
+        ]
+        # 寻找可用的填充标记，以便在下面创建嵌套张量
+        pad_tok = 0
+        while pad_tok in input_ids or any([pad_tok in ids for ids in test_ids]):
+            pad_tok += 1
+        # 将测试控制转换为嵌套张量，并在需要时进行填充
+        nested_ids = torch.nested.nested_tensor(test_ids)
+        test_ids = torch.nested.to_padded_tensor(nested_ids, pad_tok, (len(test_ids), max_len))
+    else:
+        raise ValueError(f"test_controls must be a list of strings, got {type(test_controls)}")
+
+    #if not (test_ids[0].shape[0] == control_slice.stop - control_slice.start):
+    if not (test_ids[0].shape[0] == prefix_slice.stop - prefix_slice.start):
+        raise ValueError((
+            f"test_controls must have shape "
+            f"(n, {control_slice.stop - control_slice.start}), "
+            f"got {test_ids.shape}"
+        ))
+
+    # 生成位置索引，将测试控制插入到输入序列的指定切片中
+    locs = torch.arange(prefix_slice.start, prefix_slice.stop).repeat(test_ids.shape[0], 1).to(policy_device)
+    ids = torch.scatter(
+        input_ids.unsqueeze(0).repeat(test_ids.shape[0], 1).to(policy_device),
+        1,
+        locs,
+        test_ids
+    )
+
+    # 创建注意力掩码，将 pad_tok 之外的位置设为 1
+    if pad_tok >= 0:
+        attn_mask = (ids != pad_tok).type(ids.dtype)
+    else:
+        attn_mask = None
+
+    # if return_ids:
+    #     # 如果需要返回控制序列的 ID，则调用 forward 函数并返回 logits 以及控制序列的 ID
+    #     del locs, test_ids;
+    #     gc.collect()
+    #     return forward(model=model, input_ids=ids, attention_mask=attn_mask, batch_size=batch_size), ids
+    # else:
+    #     # 否则，只返回 logits
+    #     del locs, test_ids
+    #     logits = forward(model=model, input_ids=ids, attention_mask=attn_mask, batch_size=batch_size)
+    #     del ids;
+    #     gc.collect()
+    #     return logits
+
+    #
+    losses =
+    return losses
+
 # 返回模型和分词器(tokenizer)
 def load_model_and_tokenizer(model_path, tokenizer_path=None, device='cuda:0', **kwargs):
     # 下载模型参数
