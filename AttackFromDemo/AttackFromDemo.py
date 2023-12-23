@@ -3,15 +3,30 @@ import gc
 import numpy as np
 import torch
 
-from AttackFromDemo.llm_attacks.minimal_gcg.opt_utils import token_gradients, sample_control, get_logits, target_loss
-from AttackFromDemo.llm_attacks.minimal_gcg.opt_utils import load_policy_and_tokenizer, get_filtered_cands
-from AttackFromDemo.llm_attacks.minimal_gcg.string_utils import SuffixManager, load_conversation_template
-from AttackFromDemo.llm_attacks import get_nonascii_toks
-from vima import create_policy_from_ckpt
-from transformers import AutoModelForCausalLM, AutoTokenizer
+import sys
+# Please change to your own path!!!!!!!!!!!
+sys.path.insert(0, '/home/heye/Desktop/attackrobot/scripts')
+sys.path.insert(0, '/home/heye/Desktop/attackrobot/venv/lib/python3.10/site-packages')
+
+'''from llm_attacks.minimal_gcg.opt_utils import token_gradients, sample_control, get_logits, target_loss
+from llm_attacks.minimal_gcg.opt_utils import load_policy_and_tokenizer, get_filtered_cands
+from llm_attacks.minimal_gcg.string_utils import SuffixManager, load_conversation_template'''
+
+# by yj:放在if __main__里面了，否则会循环import
+'''from llm_attacks.minimal_gcg.opt_utils import sample_control
+from llm_attacks.minimal_gcg.opt_utils import get_filtered_cands
+from llm_attacks.minimal_gcg.string_utils import SuffixManager'''
+
+from llm_attacks import get_nonascii_toks
+# by yj: 下面两行注释掉因为没用上
+# from vima import create_policy_from_ckpt
+# from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from livelossplot import PlotLosses # pip install livelossplot
 import argparse
+
+import abcd
+from abcd import tokenizer
 
 
 def get_args_parser():
@@ -51,6 +66,10 @@ def check_for_attack_success(model, tokenizer, input_ids, assistant_role_slice, 
 
 
 def main(args):
+
+    #by yj: 我包装的一个类，可以将你输入的前缀ids转化为输出actions(tensor of shape(12))
+    vimabcd = abcd.vimabcd(args)
+
     # device
     device = args.device
     print("Using {} device".format(device))
@@ -90,14 +109,18 @@ def main(args):
 
 #这里的policy是指 vima，而tokenizer是指t5-base
     # 得到模型和分词器
-    policy, tokenizer = load_policy_and_tokenizer(policy_path=args.vima_path,
+
+    # by yj：从abcd里面拿到了tokenizer(t5-base)。policy没用上。或许你可以自己加上.
+    '''_, tokenizer = load_policy_and_tokenizer(policy_path=None,
                                                   tokenizer_path='t5-base',
                                                   low_cpu_mem_usage=True,
                                                   use_cache=False,
-                                                  device=device)
+                                                  device=device)'''
     #added by chatgpt???
-    tokenizer.bos_token_id = tokenizer.pad_token_id
-    tokenizer.eos_token_id = tokenizer.pad_token_id
+
+    # by yj：不明所以所以注释掉
+    # tokenizer.bos_token_id = tokenizer.pad_token_id
+    # tokenizer.eos_token_id = tokenizer.pad_token_id
 
     #model.generation_config和生成文本有关，故删掉
 
@@ -118,23 +141,22 @@ def main(args):
 
 
 
-
-
-
-
-
-
-
     #梯度下降寻找“最优解”
     plotlosses = PlotLosses()
 
-    not_allowed_tokens = None if allow_non_ascii else get_nonascii_toks(tokenizer)
+    # by yj:注释掉了因为会报错
+    # not_allowed_tokens = None if allow_non_ascii else get_nonascii_toks(tokenizer)
     adv_suffix = adv_string_init
 
     for i in range(num_steps):
 
         # 步骤1：将用户提示（行为 + 对抗性后缀）编码为标记并返回标记ID。
         input_ids = suffix_manager.get_input_ids(adv_string=adv_suffix)
+
+        # by yj:下面两行也可以取得前缀的ids
+        # input_ids = tokenizer.encode(adv_suffix).ids
+        # _, input_ids = abcd.prepare_prefix(adv_suffix)
+
         input_ids = input_ids.to(device)
 
         # 步骤2：计算坐标梯度
@@ -143,19 +165,22 @@ def main(args):
         #                                   suffix_manager._control_slice,
         #                                   suffix_manager._target_slice,
         #                                   suffix_manager._loss_slice)
-        coordinate_grad = token_gradients_VIMA(
-                                           policy_device="cuda:0",
-                                           input_ids, actions, prefix_slice
-                                           suffix_manager._control_slice,
-                                           suffix_manager._target_slice,
-                                           suffix_manager._loss_slice)
+
+        # by yj: 我做了一些修改，可以自己去opt_utils.py里面看.
+        coordinate_grad = token_gradients_VIMA(vimabcd,
+                                           args.device,
+                                           input_ids)
+                                            
 
         # 步骤3：基于坐标梯度随机采样一批新的标记。
         # 注意我们只需要最小化损失的那个。
         with torch.no_grad():
 
             # 步骤3.1：切片输入以定位对抗性后缀。
+
+            # by yj:这一行会报错，说_control_slice不存在，可能可以用下面一行代替
             adv_suffix_tokens = input_ids[suffix_manager._control_slice].to(device)
+            # adv_suffix_tokens = input_ids.clone()
 
             # 步骤3.2：随机采样一批替代标记。
             new_adv_suffix_toks = sample_control(adv_suffix_tokens,
@@ -163,6 +188,7 @@ def main(args):
                                                  batch_size,
                                                  topk=topk,
                                                  temp=1,
+                                                # by yj:无法解析是因为上面注释掉了。
                                                  not_allowed_tokens=not_allowed_tokens)
 
             # 步骤3.3：此步骤确保所有对抗性候选具有相同数量的标记。
@@ -185,6 +211,7 @@ def main(args):
 
             losses = target_loss(logits, ids, suffix_manager._target_slice)
 
+
             best_new_adv_suffix_id = losses.argmin()
             best_new_adv_suffix = new_adv_suffix[best_new_adv_suffix_id]
 
@@ -202,7 +229,7 @@ def main(args):
         plotlosses.update({'Loss': current_loss.detach().cpu().numpy()})
         plotlosses.send()
 
-        print(f"\nPassed:{is_success}\nCurrent Suffix:{best_new_adv_suffix}", end='\r')
+        # print(f"\nPassed:{is_success}\nCurrent Suffix:{best_new_adv_suffix}", end='\r')
 
         # 注意，出于演示目的，如果通过检查器，我们立即停止优化，但您可以
         # 注释掉这一行，以使优化运行更长时间（以获得更低的损失）。
@@ -313,7 +340,20 @@ def main(args):
 
     print(f"\nCompletion: {completion}")
 
-if __name__ == '__main__':
+'''if __name__ == '__main__':
     parser = argparse.ArgumentParser('llm training and evaluation script', parents=[get_args_parser()])
     args = parser.parse_args()
-    main(args)
+    main(args)'''
+
+if __name__ == "__main__":
+    # by yj: 原本的args我已替换为VIMA的arg。
+    from llm_attacks.minimal_gcg.opt_utils import sample_control, token_gradients_VIMA
+    from llm_attacks.minimal_gcg.opt_utils import get_filtered_cands
+    from llm_attacks.minimal_gcg.string_utils import SuffixManager
+    arg = argparse.ArgumentParser()
+    arg.add_argument("--partition", type=str, default="placement_generalization")
+    arg.add_argument("--task", type=str, default="visual_manipulation")
+    arg.add_argument("--ckpt", type=str, required=True)
+    arg.add_argument("--device", default="cpu")
+    arg = arg.parse_args()
+    main(arg)

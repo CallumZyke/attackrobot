@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from AttackFromDemo.llm_attacks import get_embedding_matrix, get_embeddings
+from llm_attacks import get_embedding_matrix, get_embeddings
 
 
 
@@ -95,8 +95,10 @@ policy_device='cuda:0'
 
 #未测试
 #policy_device直接作为输入
-def token_gradients_VIMA(policy_device, input_ids, actions,prefix_slice)
+def token_gradients_VIMA(vimabcd, policy_device, input_ids): #actions,prefix_slice):
  #                        input_slice, target_slice, loss_slice):
+    
+    # by yj:后面两个参数没用上，注释掉了，或许你可以加回来
 
     """
     Computes gradients of the loss with respect to the coordinates.
@@ -130,12 +132,16 @@ def token_gradients_VIMA(policy_device, input_ids, actions,prefix_slice)
         The gradients of each token in the input_slice with respect to the loss.
     """
 
+    # by yj: get_embedding_matrix_t5都不存在，不知道你想要什么embedding，请自己修改。
     embed_weights = get_embedding_matrix_t5(model_name="t5-base")
+    # embed_weights = get_embedding_matrix(tokenizer)
     # chatGPT:创建一个全零的tensor，形状为 (batch_size, vocab_size)，其中 batch_size 是输入的样本数量，vocab_size 是嵌入矩阵的大小
     one_hot = torch.zeros(
         #input_ids[input_slice].shape[0],  # batch_size
       #  input_ids.shape[0] #
-        input_ids[prefix_slice].shape[0],  # batch_size
+        
+        # by yj:原本应该是input_ids[prefix_slice].shape[0]
+        input_ids.shape[0],  # batch_size
         embed_weights.shape[0],  # vocab_size
         #device=model.device,
         device=policy_device,
@@ -146,7 +152,9 @@ def token_gradients_VIMA(policy_device, input_ids, actions,prefix_slice)
         1,
         #input_ids[input_slice].unsqueeze(1),
        # input_ids.unsqueeze(1),
-        input_ids[prefix_slice].unsqueeze(1),
+
+        # by yj:原本应该是input_ids[prefix_slice].unsqueeze[1]
+        input_ids.unsqueeze(1),
         #torch.ones(one_hot.shape[0], 1, device=model.device, dtype=embed_weights.dtype)
         torch.ones(one_hot.shape[0], 1, device=policy_device, dtype=embed_weights.dtype)
     )
@@ -188,12 +196,16 @@ def token_gradients_VIMA(policy_device, input_ids, actions,prefix_slice)
 
 
          # actions:从vima中获得的字典,注意不是env.action_space
-    output = []
+    '''output = []
     output.extend(actions["pose0_position"])
     output.extend(actions["pose0_rotation"])
     output.extend(actions["pose1_position"])
     output.extend(actions["pose1_rotation"])
-    output = torch.Tensor(output)
+    output = torch.Tensor(output)'''
+
+    #by yj:不知道你想要什么样的output，请自己修改
+    output = vimabcd(input_ids)
+
     targets = torch.zeros([12], requires_grad=True)
     loss = nn.MSELoss()(output, targets)
 

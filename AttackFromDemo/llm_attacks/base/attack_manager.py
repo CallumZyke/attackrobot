@@ -101,7 +101,7 @@ def get_nonascii_toks(tokenizer, device='cpu'):
         return s.isascii() and s.isprintable()
 
     ascii_toks = []
-    for i in range(3, tokenizer.vocab_size):
+    for i in range(3, tokenizer.get_vocab_size()):
         # decode:把模型可以处理的标记ID序列转化为人可读的序列
         if not is_ascii(tokenizer.decode([i])):
             ascii_toks.append(i)
